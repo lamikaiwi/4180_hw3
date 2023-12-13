@@ -18,7 +18,7 @@ public class MyDedup {
     public static int min_chunk = 0, avg_chunk = 0, max_chunk = 0, d = 0, container_offset = 0;
     public static Map<String, String> indexMap = new HashMap<String, String>();
     public static String containerID = ""; // set to be the first chunk id
-    public static byte[] container = new byte[1048576];
+    public static byte[] container = {};
     public static File fileRecipe;
     public static int[] stats = new int[6];
 
@@ -33,7 +33,7 @@ public class MyDedup {
                 while (reader.hasNextLine()) {
                     String data = reader.nextLine();
                     String[] split_data = data.split(" ");
-                    if (split_data[0] == "stats") { // Take the most recent stats
+                    if (split_data[0].equals("stats")) { // Take the most recent stats
                         stats[Integer.parseInt(split_data[1])] = Math.max(stats[Integer.parseInt(split_data[1])],
                                 Integer.parseInt(split_data[2]));
                     } else { // normal chunk
@@ -84,6 +84,7 @@ public class MyDedup {
             md.update(chunk, 0, chunk.length);
             byte[] checksumBytes = md.digest();
             String chunkID = Arrays.toString(checksumBytes);
+            chunkID = chunkID.replaceAll(" ", "");
 
             // update container and update indexfile
             FileWriter fw = new FileWriter(filename, true);
@@ -96,20 +97,20 @@ public class MyDedup {
                     // when reach max size, flush the container
                     containerID = "";
                     container_offset = 0;
-                    container = new byte[1048576];
                     FileOutputStream stream = new FileOutputStream(containerID);
                     stream.write(container);
                     stream.close();
+                    container = new byte[1048576];
                     stats[5] += 1; // no. of containers
                 }
                 // make new container if empty
                 if (containerID == "") {
-                    containerID = chunkID;
+                    containerID = "container" + stats[5];
                 }
                 // update index map and index file
-                indexMap.put(chunkID, containerID + "-" + container_offset + "-" + size);
+                indexMap.put(chunkID, containerID + "-" + container_offset + "-" + size + "\n");
                 fw = new FileWriter("mydedup.index", true);
-                fw.write(chunkID + " " + containerID + "-" + container_offset + "-" + size);
+                fw.write(chunkID + " " + containerID + "-" + container_offset + "-" + size + "\n");
                 fw.close();
                 // concat the container with the chunk
                 int conLen = container.length;
@@ -117,12 +118,15 @@ public class MyDedup {
                 byte[] newContainer = new byte[conLen + chuLen];
                 System.arraycopy(container, 0, newContainer, 0, conLen);
                 System.arraycopy(chunk, 0, newContainer, conLen, chuLen);
+                container = newContainer;
 
                 container_offset += size;
                 if (end) {
+                    System.out.println(containerID);
                     FileOutputStream stream = new FileOutputStream(containerID);
                     stream.write(container);
                     stream.close();
+                    stats[5] += 1; // no. of containers
                 }
             }
         } catch (NoSuchAlgorithmException e) {
@@ -131,9 +135,10 @@ public class MyDedup {
             System.out.print("newChunk IO error\n");
         }
     }
-    
+
     /**
-     * 利用bit運算快速判斷參數合法性
+     * 
+     * 
      * @param n
      * @return true if n is power of 2
      */
@@ -167,22 +172,26 @@ public class MyDedup {
             File file = new File(up_filename);
             fileRecipe = new File(up_filename + "_recipe");
             fileRecipe.createNewFile();
-            int rfp = 0, p_pt = 0; // Rabin_fingerprint value, previous anchor point
+            int rfp = 0, p_pt = -1; // Rabin_fingerprint value, previous anchor point (-1 since the )
             int base = (int) (Math.pow(Double.valueOf(d), Double.valueOf(min_chunk - 1)));
             int mask = avg_chunk - 1;
             long length = file.length();
             byte[] file_byte = getFileBytes(file); // storing all bytes
+            System.out.println(file_byte.length);
 
             // chunking
             int c_chunk_size = 0; // current chunk size;
             // start calculating the next windows with quicker method
-            for (int i = min_chunk; i < length - min_chunk; i++) {
+            for (int i = 0; i < length - min_chunk; i++) {
                 if (c_chunk_size >= max_chunk) { // reach max_chunk
                     newChunk(Arrays.copyOfRange(file_byte, p_pt + 1, i + 1), i - p_pt, up_filename + "_recipe", false);
                     p_pt = i;
                     c_chunk_size = 0;
                     continue;
                 } else if (c_chunk_size < min_chunk) { // starting a new chunk
+                    if (i + min_chunk >= length) {
+                        break;
+                    }
                     int first_base = base;
                     for (int j = 0; j < min_chunk; j++) {
                         first_base /= d;
@@ -193,7 +202,7 @@ public class MyDedup {
                     c_chunk_size += min_chunk;
                 } else {
                     // calculate the next window with the algorithm
-                    rfp = (d & mask) * ((rfp - file_byte[i - avg_chunk] * (base & mask)) & mask)
+                    rfp = (d & mask) * ((rfp - file_byte[i - min_chunk] * (base & mask)) & mask)
                             + file_byte[i];
                     rfp &= mask;
                     c_chunk_size++;
@@ -217,7 +226,7 @@ public class MyDedup {
             FileWriter fw = new FileWriter("mydedup.index", true);
             try {
                 for (int i = 0; i < stats.length; i++) {
-                    fw.write("stats " + i + " " + stats[i]);
+                    fw.write("stats " + i + " " + stats[i] + "\n");
                 }
             } catch (IOException e) {
                 System.out.println("stats writing error\n");

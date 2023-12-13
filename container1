@@ -1,0 +1,141 @@
+
+                container = newContainer;
+
+                container_offset += size;
+                if (end) {
+                    System.out.println(containerID);
+                    FileOutputStream stream = new FileOutputStream(containerID + ".txt");
+                    stream.write(container);
+                    stream.close();
+                }
+            }
+        } catch (NoSuchAlgorithmException e) {
+            System.out.print("No SHA-1 Algorithm\n");
+        } catch (IOException e) {
+            System.out.print("newChunk IO error\n");
+        }
+    }
+
+    /**
+     * 
+     * 
+     * @param n
+     * @return true if n is power of 2
+     */
+    private static boolean isChunkSizeParamValid(int n) {
+        return (n >= 2) && (n & (n - 1)) == 0; // n>=2 or power of 2
+    }
+
+    public static void main(String[] args) throws Exception {
+        // get metadata
+        getIndexFileMap();
+        final String c_state = args[0];
+        if (c_state.equals("upload")) {
+            // read input and validation
+            min_chunk = Integer.valueOf(args[1]);
+            avg_chunk = Integer.valueOf(args[2]);
+            max_chunk = Integer.valueOf(args[3]);
+            int[] check = new int[] { min_chunk, avg_chunk, max_chunk };
+            for (int i = 0; i < 3; i++) {
+                if (!isChunkSizeParamValid(check[i])) {
+                    if (check[i] < 2)
+                        System.out.println("chunk size must >= 2!");
+                    else
+                        System.out.println("chunk size not power of 2!");
+                    System.exit(-2);
+                }
+            }
+            d = Integer.valueOf(args[4]);
+            final String up_filename = args[5];
+
+            // initialization
+            File file = new File(up_filename);
+            fileRecipe = new File(up_filename + "_recipe");
+            fileRecipe.createNewFile();
+            int rfp = 0, p_pt = 0; // Rabin_fingerprint value, previous anchor point
+            int base = (int) (Math.pow(Double.valueOf(d), Double.valueOf(min_chunk - 1)));
+            int mask = avg_chunk - 1;
+            long length = file.length();
+            byte[] file_byte = getFileBytes(file); // storing all bytes
+            System.out.println(file_byte.length);
+
+            // chunking
+            int c_chunk_size = 0; // current chunk size;
+            // start calculating the next windows with quicker method
+            for (int i = 0; i < length - min_chunk; i++) {
+                System.out.println(i);
+                if (c_chunk_size >= max_chunk) { // reach max_chunk
+                    newChunk(Arrays.copyOfRange(file_byte, p_pt + 1, i + 1), i - p_pt, up_filename + "_recipe", false);
+                    p_pt = i;
+                    c_chunk_size = 0;
+                    continue;
+                } else if (c_chunk_size < min_chunk) { // starting a new chunk
+                    if (i + min_chunk >= length) {
+                        break;
+                    }
+                    int first_base = base;
+                    for (int j = 0; j < min_chunk; j++) {
+                        first_base /= d;
+                        rfp += (file_byte[j] * (first_base & mask)) & mask;
+                        // &mask operates the same as mod (mask+1), which is avg_chunk
+                    }
+                    i += min_chunk - 1; // need to minus 1 to negate the effect of the i++ in the large loop
+                    c_chunk_size += min_chunk;
+                } else {
+                    // calculate the next window with the algorithm
+                    rfp = (d & mask) * ((rfp - file_byte[i - min_chunk] * (base & mask)) & mask)
+                            + file_byte[i];
+                    rfp &= mask;
+                    c_chunk_size++;
+                }
+                // set anchor point
+                if ((rfp & mask) == 0) {
+                    newChunk(Arrays.copyOfRange(file_byte, p_pt + 1, i + 1), i - p_pt, up_filename + "_recipe", false);
+                    p_pt = i;
+                    c_chunk_size = 0;
+                }
+            }
+
+            // create chunk for the last part
+            newChunk(Arrays.copyOfRange(file_byte, p_pt + 1, (int) length), (int) length - p_pt,
+                    up_filename + "_recipe",
+                    true);
+
+            // update stats in the index file
+            // Note the recent value must >= previous values
+            stats[0] += 1;
+            FileWriter fw = new FileWriter("mydedup.index", true);
+            try {
+                for (int i = 0; i < stats.length; i++) {
+                    fw.write("stats " + i + " " + stats[i]);
+                }
+            } catch (IOException e) {
+                System.out.println("stats writing error\n");
+            } finally {
+                fw.close();
+            }
+            System.out.print("Total number of files that have been stored: " + stats[0] + "\n");
+            System.out.print("Total number of pre-deduplicated chunks in storage: " + stats[1] + "\n");
+            System.out.print("Total number of unique chunks in storage: " + stats[2] + "\n");
+            System.out.print("Total number of bytes of pre-deduplicated chunks in storage: " + stats[3] + "\n");
+            System.out.print("Total number of bytes of unique chunks in storage: " + stats[4] + "\n");
+            System.out.print("Total number of containers in storage: " + stats[5] + "\n");
+            System.out.printf("Deduplication ratio: %.2f\n", (double) stats[3] / (double) stats[4]);
+
+        } else if (c_state.equals("download")) {
+            final String down_filename = args[1];
+            final String save_filename = args[2];
+            // read recipe
+
+            // find index from index file
+
+            // get containers
+
+            // construct file from container with info from indexfile
+        } else {
+            System.out.println("Not upload nor download");
+            System.exit(-1);
+        }
+
+    }
+}

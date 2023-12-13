@@ -43,7 +43,7 @@ public class MyDedup {
                 reader.close();
             }
         } catch (IOException e) {
-            System.out.print("getIndexFileMap error\n");
+            System.out.print("getIndexFileMap error" + e.getMessage() + "\n");
         }
     }
 
@@ -63,13 +63,13 @@ public class MyDedup {
                 if (out_str != null)
                     out_str.close();
             } catch (IOException e) {
-                System.out.print("getFileBytes out stream error\n");
+                System.out.print("getFileBytes out stream error" + e.getMessage() + "\n");
             }
             try {
                 if (in_st != null)
                     in_st.close();
             } catch (IOException e) {
-                System.out.print("getFileBytes in stream error\n");
+                System.out.print("getFileBytes in stream error" + e.getMessage() + "\n");
             }
         }
         return out_str.toByteArray();
@@ -101,12 +101,12 @@ public class MyDedup {
                 stats[4] += size; // no. of unique chunks
                 if ((container_offset + size) >= 1048576) {
                     // when reach max size, flush the container
-                    containerID = "";
-                    container_offset = 0;
                     FileOutputStream stream = new FileOutputStream(containerID);
                     stream.write(container);
                     stream.close();
-                    container = new byte[1048576];
+                    containerID = "";
+                    container_offset = 0;
+                    container = new byte[] {};
                     stats[5] += 1; // no. of containers
                 }
                 // make new container if empty
@@ -114,7 +114,7 @@ public class MyDedup {
                     containerID = "container" + stats[5];
                 }
                 // update index map and index file
-                indexMap.put(chunkID, containerID + "-" + container_offset + "-" + size + "\n");
+                indexMap.put(chunkID, containerID + "-" + container_offset + "-" + size);
                 fw = new FileWriter("mydedup.index", true);
                 fw.write(chunkID + " " + containerID + "-" + container_offset + "-" + size + "\n");
                 fw.close();
@@ -136,9 +136,9 @@ public class MyDedup {
                 }
             }
         } catch (NoSuchAlgorithmException e) {
-            System.out.print("No SHA-1 Algorithm\n");
+            System.out.print("No SHA-1 Algorithm" + e.getMessage() + " \n");
         } catch (IOException e) {
-            System.out.print("newChunk IO error\n");
+            System.out.print("newChunk IO error" + e.getMessage() + "\n");
         }
     }
 
@@ -235,7 +235,7 @@ public class MyDedup {
                     fw.write("stats " + i + " " + stats[i] + "\n");
                 }
             } catch (IOException e) {
-                System.out.println("stats writing error\n");
+                System.out.println("stats writing error" + e.getMessage() + "\n");
             } finally {
                 fw.close();
             }

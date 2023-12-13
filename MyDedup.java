@@ -83,8 +83,14 @@ public class MyDedup {
             MessageDigest md = MessageDigest.getInstance("SHA-1");
             md.update(chunk, 0, chunk.length);
             byte[] checksumBytes = md.digest();
-            String chunkID = Arrays.toString(checksumBytes);
-            chunkID = chunkID.replaceAll(" ", "");
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : checksumBytes) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1)
+                    hexString.append('0');
+                hexString.append(hex);
+            }
+            String chunkID = hexString.substring(0);
 
             // update container and update indexfile
             FileWriter fw = new FileWriter(filename, true);

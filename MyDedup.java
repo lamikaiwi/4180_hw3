@@ -11,10 +11,12 @@ import java.util.Map;
 import java.util.Scanner;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.HashMap;
 
 public class MyDedup {
+
     public static int min_chunk = 0, avg_chunk = 0, max_chunk = 0, d = 0, container_offset = 0;
-    public static Map<String, String> indexMap = null;
+    public static Map<String, String> indexMap = new HashMap<String, String>();
     public static String containerID = ""; // set to be the first chunk id
     public static byte[] container = new byte[1048576];
     public static File fileRecipe;
@@ -129,28 +131,33 @@ public class MyDedup {
             System.out.print("newChunk IO error\n");
         }
     }
+    
+    /**
+     * 利用bit運算快速判斷參數合法性
+     * @param n
+     * @return true if n is power of 2
+     */
+    private static boolean isChunkSizeParamValid(int n) {
+        return (n >= 2) && (n & (n - 1)) == 0; // n>=2 or power of 2
+    }
 
     public static void main(String[] args) throws Exception {
         // get metadata
         getIndexFileMap();
-
         final String c_state = args[0];
-        if (c_state == "upload") {
+        if (c_state.equals("upload")) {
             // read input and validation
             min_chunk = Integer.valueOf(args[1]);
             avg_chunk = Integer.valueOf(args[2]);
             max_chunk = Integer.valueOf(args[3]);
             int[] check = new int[] { min_chunk, avg_chunk, max_chunk };
             for (int i = 0; i < 3; i++) {
-                if (check[i] < 2) {
-                    System.out.println("chunk size smaller than 2!");
-                    System.exit(-2);
-                }
-                for (int j = check[i]; j > 2; j /= 2) {
-                    if (j % 2 != 0) {
+                if (!isChunkSizeParamValid(check[i])) {
+                    if (check[i] < 2)
+                        System.out.println("chunk size must >= 2!");
+                    else
                         System.out.println("chunk size not power of 2!");
-                        System.exit(-2);
-                    }
+                    System.exit(-2);
                 }
             }
             d = Integer.valueOf(args[4]);
@@ -225,7 +232,7 @@ public class MyDedup {
             System.out.print("Total number of containers in storage: " + stats[5] + "\n");
             System.out.printf("Deduplication ratio: %.2f\n", (double) stats[3] / (double) stats[4]);
 
-        } else if (c_state == "download") {
+        } else if (c_state.equals("download")) {
             final String down_filename = args[1];
             final String save_filename = args[2];
             // read recipe

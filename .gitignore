@@ -2,3 +2,4 @@ test
 .vscode
 .idea
 .mydedup.index
+*_recipe
